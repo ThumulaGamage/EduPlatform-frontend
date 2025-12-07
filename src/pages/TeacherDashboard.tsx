@@ -1,50 +1,143 @@
+// src/pages/TeacherDashboard.tsx - FIXED API ENDPOINTS
+import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, BookOpen, MessageSquare, PlusCircle, BarChart } from "lucide-react";
+import { Users, BookOpen, Clock, GraduationCap, CheckCircle, XCircle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import API from "@/api/axios";
+
+interface Enrollment {
+  _id: string;
+  studentId: {
+    _id: string;
+    name: string;
+    gmail: string;
+  };
+  courseId: {
+    _id: string;
+    title: string;
+  };
+  status: "pending" | "approved" | "rejected";
+  enrollmentDate: string;
+}
+
+interface TeacherStats {
+  totalCourses: number;
+  totalStudents: number;
+  pendingEnrollments: number;
+  recentEnrollments: any[];
+}
 
 const TeacherDashboard = () => {
-  const myCourses = [
-    {
-      title: "Full Stack Web Development",
-      students: 342,
-      avgRating: 4.8,
-      pending: 12,
-      status: "active"
-    },
-    {
-      title: "Advanced JavaScript Patterns",
-      students: 215,
-      avgRating: 4.9,
-      pending: 5,
-      status: "active"
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [stats, setStats] = useState<TeacherStats | null>(null);
+  const [pendingEnrollments, setPendingEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // FIXED: Changed from /teachers/stats/dashboard to /teachers/dashboard/stats
+      const [statsRes, pendingRes] = await Promise.all([
+        API.get("/teachers/dashboard/stats"),
+        API.get("/enrollments/pending")
+      ]);
+
+      setStats(statsRes.data.stats);
+      setPendingEnrollments(pendingRes.data.enrollments);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to load dashboard data"
+      });
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
+
+  const handleApproveEnrollment = async (enrollmentId: string) => {
+    setActionLoading(enrollmentId);
+    try {
+      await API.put(`/enrollments/${enrollmentId}/approve`);
+      toast({
+        title: "Enrollment Approved!",
+        description: "Student has been enrolled in the course."
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || "Failed to approve enrollment"
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRejectEnrollment = async (enrollmentId: string) => {
+    setActionLoading(enrollmentId);
+    try {
+      await API.put(`/enrollments/${enrollmentId}/reject`);
+      toast({
+        title: "Enrollment Rejected",
+        description: "Student enrollment has been rejected."
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || "Failed to reject enrollment"
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="container mx-auto px-4 py-12">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="mt-4 text-muted-foreground">Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
       
       <div className="container mx-auto px-4 py-12">
-        <div className="flex items-center justify-between mb-12">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">Instructor Dashboard</h1>
-            <p className="text-muted-foreground text-lg">Manage your courses and students</p>
-          </div>
-          <Button className="bg-gradient-hero gap-2">
-            <PlusCircle className="h-4 w-4" />
-            Create New Course
-          </Button>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Welcome, {user?.name || "Instructor"}!</h1>
+          <p className="text-muted-foreground text-lg">Manage your courses and students</p>
         </div>
 
         {/* Stats Overview */}
         <div className="grid md:grid-cols-4 gap-6 mb-12">
           {[
-            { icon: BookOpen, label: "Total Courses", value: "2", color: "text-primary" },
-            { icon: Users, label: "Total Students", value: "557", color: "text-secondary" },
-            { icon: MessageSquare, label: "Pending Reviews", value: "17", color: "text-accent" },
-            { icon: BarChart, label: "Avg Rating", value: "4.85", color: "text-primary" }
+            { icon: BookOpen, label: "Total Courses", value: stats?.totalCourses || "0", color: "text-primary" },
+            { icon: Users, label: "Total Students", value: stats?.totalStudents || "0", color: "text-secondary" },
+            { icon: Clock, label: "Pending Requests", value: stats?.pendingEnrollments || "0", color: "text-accent" },
+            { icon: GraduationCap, label: "Recent Enrollments", value: stats?.recentEnrollments?.length || "0", color: "text-primary" }
           ].map((stat, index) => (
             <Card key={index}>
               <CardContent className="pt-6">
@@ -62,65 +155,76 @@ const TeacherDashboard = () => {
           ))}
         </div>
 
-        {/* My Courses */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6">My Courses</h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {myCourses.map((course, index) => (
-              <Card key={index} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-xl mb-2">{course.title}</CardTitle>
-                      <CardDescription>{course.students} enrolled students</CardDescription>
+        {/* Pending Enrollment Requests */}
+        {pendingEnrollments.length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold mb-6">Pending Enrollment Requests</h2>
+            <div className="space-y-4">
+              {pendingEnrollments.map((enrollment) => (
+                <Card key={enrollment._id}>
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-full bg-gradient-hero flex items-center justify-center text-primary-foreground font-bold text-lg">
+                          {enrollment.studentId.name.charAt(0)}
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-lg">{enrollment.studentId.name}</h3>
+                          <p className="text-sm text-muted-foreground">{enrollment.studentId.gmail}</p>
+                          <Badge variant="outline" className="mt-1">
+                            {enrollment.courseId.title}
+                          </Badge>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleRejectEnrollment(enrollment._id)}
+                          disabled={actionLoading === enrollment._id}
+                        >
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Reject
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApproveEnrollment(enrollment._id)}
+                          disabled={actionLoading === enrollment._id}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          {actionLoading === enrollment._id ? "Processing..." : "Approve"}
+                        </Button>
+                      </div>
                     </div>
-                    <Badge variant={course.status === "active" ? "default" : "secondary"}>
-                      {course.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Average Rating</span>
-                      <span className="font-semibold">⭐ {course.avgRating}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">Pending Submissions</span>
-                      <Badge variant="outline">{course.pending}</Badge>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <Button variant="outline" className="flex-1">Edit Course</Button>
-                      <Button className="flex-1">View Analytics</Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Recent Activity */}
         <div>
-          <h2 className="text-2xl font-bold mb-6">Recent Activity</h2>
+          <h2 className="text-2xl font-bold mb-6">Recent Enrollments</h2>
           <Card>
             <CardContent className="pt-6">
-              <div className="space-y-4">
-                {[
-                  { student: "Alice Johnson", action: "submitted assignment", course: "Full Stack Web Development", time: "1 hour ago" },
-                  { student: "Bob Smith", action: "asked a question", course: "Advanced JavaScript Patterns", time: "3 hours ago" },
-                  { student: "Carol Williams", action: "completed course", course: "Full Stack Web Development", time: "5 hours ago" },
-                  { student: "David Brown", action: "left a review", course: "Advanced JavaScript Patterns", time: "1 day ago" }
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between py-3 border-b last:border-b-0">
-                    <div>
-                      <p className="font-medium">{activity.student} {activity.action}</p>
-                      <p className="text-sm text-muted-foreground">{activity.course}</p>
+              {stats?.recentEnrollments && stats.recentEnrollments.length > 0 ? (
+                <div className="space-y-4">
+                  {stats.recentEnrollments.map((enrollment: any, index: number) => (
+                    <div key={index} className="flex items-center justify-between py-3 border-b last:border-b-0">
+                      <div>
+                        <p className="font-medium">{enrollment.studentId?.name} enrolled</p>
+                        <p className="text-sm text-muted-foreground">{enrollment.courseId?.title}</p>
+                      </div>
+                      <Badge variant={enrollment.status === "approved" ? "default" : "secondary"}>
+                        {enrollment.status}
+                      </Badge>
                     </div>
-                    <span className="text-sm text-muted-foreground">{activity.time}</span>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-muted-foreground py-8">No recent activity</p>
+              )}
             </CardContent>
           </Card>
         </div>

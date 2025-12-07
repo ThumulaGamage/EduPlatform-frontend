@@ -1,4 +1,4 @@
-// src/api/axios.ts
+// src/api/axios.ts - FIXED VERSION
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 const API: AxiosInstance = axios.create({
@@ -30,7 +30,8 @@ API.interceptors.response.use(
       // Token expired or invalid
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      // FIXED: Changed from '/login' to '/auth'
+      window.location.href = '/auth';
     }
     return Promise.reject(error);
   }

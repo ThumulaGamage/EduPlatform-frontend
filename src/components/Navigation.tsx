@@ -1,19 +1,61 @@
+// src/components/Navigation.tsx - TEST VERSION WITH LOGS
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, BookOpen, LayoutDashboard, User, Menu, X } from "lucide-react";
+import { GraduationCap, BookOpen, Users, LayoutDashboard, Menu, X, LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const Navigation = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
   
-  const navLinks = [
-    { path: "/courses", label: "Courses", icon: BookOpen },
-    { path: "/student-dashboard", label: "My Learning", icon: LayoutDashboard },
-    { path: "/teacher-dashboard", label: "Teach", icon: User },
-  ];
+  // Navigation links based on user role
+  const getNavLinks = () => {
+    console.log("🔍 DEBUG - isAuthenticated:", isAuthenticated);
+    console.log("🔍 DEBUG - user:", user);
+    console.log("🔍 DEBUG - user role:", user?.role);
+    
+    if (!isAuthenticated) {
+      console.log("📍 Showing PUBLIC links");
+      // Not logged in - show public links
+      return [
+        { path: "/courses", label: "Courses", icon: BookOpen },
+        { path: "/teachers", label: "Teachers", icon: Users },
+      ];
+    }
+    
+    if (user?.role === "teacher") {
+      console.log("👨‍🏫 Showing TEACHER links");
+      // Teacher - show Dashboard, My Students, Courses tabs
+      return [
+        { path: "/teacher-dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { path: "/teacher-dashboard/students", label: "My Students", icon: Users },
+        { path: "/teacher-dashboard/courses", label: "Courses", icon: BookOpen },
+      ];
+    }
+    
+    console.log("👨‍🎓 Showing STUDENT links");
+    // Student - show My Learning, Courses, Teachers
+    return [
+      { path: "/student-dashboard", label: "My Learning", icon: LayoutDashboard },
+      { path: "/courses", label: "Courses", icon: BookOpen },
+      { path: "/teachers", label: "Teachers", icon: Users },
+    ];
+  };
+
+  const navLinks = getNavLinks();
+  
+  console.log("🔗 Nav Links to display:", navLinks);
   
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -40,12 +82,32 @@ const Navigation = () => {
 
           {/* Desktop Auth Buttons */}
           <div className="hidden md:flex items-center gap-3">
-            <Link to="/auth">
-              <Button variant="ghost">Sign In</Button>
-            </Link>
-            <Link to="/auth">
-              <Button className="bg-gradient-hero">Get Started</Button>
-            </Link>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-hero flex items-center justify-center text-primary-foreground text-sm font-medium">
+                    {user?.name?.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{user?.name}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{user?.role}</span>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  <LogOut className="h-4 w-4 mr-2" />
+                  Logout
+                </Button>
+              </div>
+            ) : (
+              <>
+                <Link to="/auth">
+                  <Button variant="ghost">Sign In</Button>
+                </Link>
+                <Link to="/auth">
+                  <Button className="bg-gradient-hero">Get Started</Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -79,12 +141,32 @@ const Navigation = () => {
               </Link>
             ))}
             <div className="pt-4 border-t border-border space-y-2">
-              <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="outline" className="w-full">Sign In</Button>
-              </Link>
-              <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
-                <Button className="w-full bg-gradient-hero">Get Started</Button>
-              </Link>
+              {isAuthenticated ? (
+                <>
+                  <div className="flex items-center gap-2 px-4 py-2">
+                    <div className="w-8 h-8 rounded-full bg-gradient-hero flex items-center justify-center text-primary-foreground text-sm font-medium">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium">{user?.name}</span>
+                      <span className="text-xs text-muted-foreground capitalize">{user?.role}</span>
+                    </div>
+                  </div>
+                  <Button variant="outline" className="w-full" onClick={() => { handleLogout(); setMobileMenuOpen(false); }}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                    <Button variant="outline" className="w-full">Sign In</Button>
+                  </Link>
+                  <Link to="/auth" onClick={() => setMobileMenuOpen(false)}>
+                    <Button className="w-full bg-gradient-hero">Get Started</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
