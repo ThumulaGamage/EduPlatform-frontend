@@ -1,9 +1,10 @@
-// src/components/CoursesPreview.tsx - FIXED VERSION
+// src/components/CoursesPreview.tsx - UPDATED with course details links
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Clock, BarChart, CheckCircle } from "lucide-react";
+import { BookOpen, Clock, BarChart, CheckCircle, Eye } from "lucide-react";
 import API from "@/api/axios";
 import { useToast } from "@/hooks/use-toast";
 
@@ -26,7 +27,6 @@ interface Enrollment {
   _id: string;
   courseId: {
     _id: string;
-    title: string;
   };
   status: "pending" | "approved" | "rejected";
 }
@@ -37,6 +37,7 @@ const CoursesPreview = () => {
   const [loading, setLoading] = useState(true);
   const [requestingEnrollment, setRequestingEnrollment] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -57,13 +58,13 @@ const CoursesPreview = () => {
     }
   };
 
-  // FIXED: Compare with courseId._id since courseId is populated
   const getEnrollmentStatus = (courseId: string) => {
     const enrollment = enrollments.find(e => e.courseId._id === courseId);
     return enrollment?.status;
   };
 
-  const handleEnrollRequest = async (courseId: string) => {
+  const handleEnrollRequest = async (courseId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
     setRequestingEnrollment(courseId);
     try {
       await API.post("/enrollments/request", { courseId });
@@ -71,7 +72,7 @@ const CoursesPreview = () => {
         title: "Enrollment Requested!",
         description: "Your enrollment request has been sent to the teacher.",
       });
-      fetchData(); // Refresh data
+      fetchData();
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -120,7 +121,11 @@ const CoursesPreview = () => {
             const isRequesting = requestingEnrollment === course._id;
 
             return (
-              <Card key={course._id} className="hover:shadow-lg transition-shadow">
+              <Card 
+                key={course._id} 
+                className="hover:shadow-lg transition-shadow cursor-pointer"
+                onClick={() => navigate(`/course/${course._id}`)}
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2">
                     <Badge className={getLevelColor(course.level)}>
@@ -149,33 +154,38 @@ const CoursesPreview = () => {
                     </div>
                   </div>
 
-                  {enrollmentStatus === "approved" ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Enrolled
-                    </Button>
-                  ) : enrollmentStatus === "pending" ? (
-                    <Button variant="outline" className="w-full" disabled>
-                      Pending Approval
-                    </Button>
-                  ) : enrollmentStatus === "rejected" ? (
+                  <div className="flex gap-2">
                     <Button 
                       variant="outline" 
-                      className="w-full"
-                      onClick={() => handleEnrollRequest(course._id)}
-                      disabled={isRequesting}
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/course/${course._id}`);
+                      }}
                     >
-                      Request Again
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
                     </Button>
-                  ) : (
-                    <Button 
-                      className="w-full"
-                      onClick={() => handleEnrollRequest(course._id)}
-                      disabled={isRequesting}
-                    >
-                      {isRequesting ? "Requesting..." : "Request Enrollment"}
-                    </Button>
-                  )}
+                    
+                    {enrollmentStatus === "approved" ? (
+                      <Button variant="secondary" className="flex-1" disabled onClick={(e) => e.stopPropagation()}>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Enrolled
+                      </Button>
+                    ) : enrollmentStatus === "pending" ? (
+                      <Button variant="secondary" className="flex-1" disabled onClick={(e) => e.stopPropagation()}>
+                        Pending
+                      </Button>
+                    ) : (
+                      <Button 
+                        className="flex-1"
+                        onClick={(e) => handleEnrollRequest(course._id, e)}
+                        disabled={isRequesting}
+                      >
+                        {isRequesting ? "..." : "Enroll"}
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             );

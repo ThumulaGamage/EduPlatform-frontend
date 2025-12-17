@@ -1,4 +1,4 @@
-// src/components/CourseManagement.tsx
+// src/components/CourseManagement.tsx - UPDATED with manage content button
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Edit, Trash2, Users } from "lucide-react";
+import { Plus, Edit, Trash2, FileText } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import API from "@/api/axios";
@@ -38,7 +38,11 @@ interface CourseFormData {
   totalLessons: number;
 }
 
-const CourseManagement = () => {
+interface Props {
+  onSelectCourse?: (courseId: string) => void;
+}
+
+const CourseManagement = ({ onSelectCourse }: Props) => {
   const { user } = useAuth();
   const { toast } = useToast();
   
@@ -223,7 +227,7 @@ const CourseManagement = () => {
             <DialogHeader>
               <DialogTitle>Create New Course</DialogTitle>
               <DialogDescription>
-                Fill in the details to create a new course
+                Fill in the basic details. You can add lessons and content after creating the course.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateCourse} className="space-y-4">
@@ -277,30 +281,15 @@ const CourseManagement = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Duration *</Label>
-                  <Input
-                    id="duration"
-                    placeholder="e.g., 8 weeks, 3 months"
-                    value={formData.duration}
-                    onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="totalLessons">Total Lessons *</Label>
-                  <Input
-                    id="totalLessons"
-                    type="number"
-                    min="0"
-                    placeholder="e.g., 24"
-                    value={formData.totalLessons}
-                    onChange={(e) => setFormData({ ...formData, totalLessons: parseInt(e.target.value) || 0 })}
-                    required
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration *</Label>
+                <Input
+                  id="duration"
+                  placeholder="e.g., 8 weeks, 3 months"
+                  value={formData.duration}
+                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                  required
+                />
               </div>
 
               <DialogFooter>
@@ -322,7 +311,7 @@ const CourseManagement = () => {
           <DialogHeader>
             <DialogTitle>Edit Course</DialogTitle>
             <DialogDescription>
-              Update course details
+              Update course basic information
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditCourse} className="space-y-4">
@@ -373,28 +362,14 @@ const CourseManagement = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-duration">Duration *</Label>
-                <Input
-                  id="edit-duration"
-                  value={formData.duration}
-                  onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="edit-totalLessons">Total Lessons *</Label>
-                <Input
-                  id="edit-totalLessons"
-                  type="number"
-                  min="0"
-                  value={formData.totalLessons}
-                  onChange={(e) => setFormData({ ...formData, totalLessons: parseInt(e.target.value) || 0 })}
-                  required
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-duration">Duration *</Label>
+              <Input
+                id="edit-duration"
+                value={formData.duration}
+                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                required
+              />
             </div>
 
             <DialogFooter>
@@ -451,21 +426,27 @@ const CourseManagement = () => {
                 <div className="flex gap-2 pt-2">
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="default"
                     className="flex-1"
-                    onClick={() => openEditDialog(course)}
+                    onClick={() => onSelectCourse && onSelectCourse(course._id)}
                   >
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
+                    <FileText className="h-4 w-4 mr-1" />
+                    Content
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="flex-1 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                    onClick={() => openEditDialog(course)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
                     onClick={() => handleDeleteCourse(course._id, course.title)}
                   >
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </CardContent>
