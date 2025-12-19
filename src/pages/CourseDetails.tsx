@@ -1,12 +1,13 @@
-// src/pages/CourseDetails.tsx - UPDATED to use real data
+// src/pages/CourseDetails.tsx - UPDATED with accordion course content
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { 
   BookOpen, 
   Clock, 
@@ -14,23 +15,36 @@ import {
   Users, 
   CheckCircle, 
   ArrowLeft,
-  Star,
   Award,
   Target,
-  Calendar,
   Mail,
-  MapPin
+  MapPin,
+  MessageSquare,
+  FileText,
+  Video,
+  Eye
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import API from "@/api/axios";
-import { MessageSquare } from "lucide-react";
+import ReviewSection from "@/components/ReviewSection";
+import { formatDistanceToNow } from "date-fns";
 
 interface Lesson {
   title: string;
   description: string;
   duration: number;
   order: number;
+}
+
+interface Material {
+  _id: string;
+  title: string;
+  type: 'pdf' | 'video' | 'document' | 'image' | 'other';
+  url: string;
+  filename: string;
+  filesize: number;
+  uploadedAt: string;
 }
 
 interface Course {
@@ -72,6 +86,100 @@ interface RelatedCourse {
   };
 }
 
+// Component to show materials for a specific lesson
+const LessonMaterials = ({ courseId, lessonTitle }: { courseId: string; lessonTitle: string }) => {
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMaterials();
+  }, [courseId, lessonTitle]);
+
+  const fetchMaterials = async () => {
+    try {
+      const response = await API.get(`/materials/course/${courseId}`);
+      const allMaterials: Material[] = response.data.materials || [];
+      
+      // Filter materials that belong to this lesson
+      const lessonMaterials = allMaterials.filter(m => 
+        m.title.includes(lessonTitle) || m.title.startsWith(`${lessonTitle} -`)
+      );
+      
+      setMaterials(lessonMaterials);
+    } catch (error) {
+      console.error("Error fetching materials:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const getFileIcon = (type: string) => {
+    switch (type) {
+      case 'pdf':
+      case 'document':
+        return <FileText className="h-5 w-5 text-red-500" />;
+      case 'video':
+        return <Video className="h-5 w-5 text-blue-500" />;
+      default:
+        return <FileText className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  if (loading) {
+    return <div className="text-sm text-muted-foreground italic">Loading materials...</div>;
+  }
+
+  if (materials.length === 0) {
+    return <div className="text-sm text-muted-foreground italic">No materials for this lesson</div>;
+  }
+
+  return (
+    <div>
+      <h5 className="text-sm font-medium mb-2">Lesson Materials</h5>
+      <div className="space-y-2">
+        {materials.map((material) => (
+          <div
+            key={material._id}
+            className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg"
+          >
+            {getFileIcon(material.type)}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">
+                {material.title}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                <Badge variant="outline" className="text-xs">
+                  {material.type.toUpperCase()}
+                </Badge>
+                <span>{formatFileSize(material.filesize)}</span>
+                <span>
+                  {formatDistanceToNow(new Date(material.uploadedAt), {
+                    addSuffix: true,
+                  })}
+                </span>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(material.url, '_blank')}
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              View
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const CourseDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -92,18 +200,15 @@ const CourseDetails = () => {
   const fetchCourseDetails = async () => {
     setLoading(true);
     try {
-      // Fetch course details
       const courseRes = await API.get(`/courses/${id}`);
       setCourse(courseRes.data.course);
 
-      // Fetch related courses (same category)
       const allCoursesRes = await API.get("/courses");
       const related = allCoursesRes.data.courses
         .filter((c: Course) => c._id !== id && c.category === courseRes.data.course.category)
         .slice(0, 3);
       setRelatedCourses(related);
 
-      // If authenticated as student, check enrollment status
       if (isAuthenticated && user?.role === "student") {
         try {
           const enrollmentsRes = await API.get("/enrollments/my-enrollments");
@@ -118,8 +223,18 @@ const CourseDetails = () => {
         }
       }
 
-      // Mock student count for now
-      setStudentCount(Math.floor(Math.random() * 100) + 10);
+      // Get real student count for this course
+      try {
+        const enrollmentsRes = await API.get(`/enrollments/course/${id}`);
+        // Count only approved enrollments
+        const approvedCount = enrollmentsRes.data.enrollments?.filter(
+          (e: any) => e.status === "approved"
+        ).length || 0;
+        setStudentCount(approvedCount);
+      } catch (err) {
+        console.log("Could not fetch student count");
+        setStudentCount(0);
+      }
 
     } catch (error) {
       console.error("Error fetching course details:", error);
@@ -280,7 +395,6 @@ const CourseDetails = () => {
     );
   }
 
-  // Calculate total duration from lessons
   const totalDuration = course.lessons?.reduce((sum, lesson) => sum + lesson.duration, 0) || 0;
 
   return (
@@ -288,7 +402,6 @@ const CourseDetails = () => {
       <Navigation />
       
       <div className="container mx-auto px-4 py-8">
-        {/* Back Button */}
         <Button 
           variant="ghost" 
           className="mb-6 gap-2"
@@ -312,7 +425,6 @@ const CourseDetails = () => {
               <h1 className="text-4xl font-bold mb-4">{course.title}</h1>
               <p className="text-lg text-muted-foreground mb-6">{course.description}</p>
 
-              {/* Course Stats */}
               <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4" />
@@ -337,7 +449,7 @@ const CourseDetails = () => {
 
             <Separator />
 
-            {/* What You'll Learn - REAL DATA */}
+            {/* What You'll Learn */}
             {course.learningObjectives && course.learningObjectives.length > 0 ? (
               <Card>
                 <CardHeader>
@@ -366,7 +478,7 @@ const CourseDetails = () => {
               </Card>
             )}
 
-            {/* Course Content - REAL DATA */}
+            {/* Course Content with Accordion and Materials */}
             {course.lessons && course.lessons.length > 0 ? (
               <Card>
                 <CardHeader>
@@ -379,24 +491,50 @@ const CourseDetails = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
+                  <Accordion type="single" collapsible className="space-y-2">
                     {course.lessons.map((lesson, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                            {lesson.order}
+                      <AccordionItem 
+                        key={index} 
+                        value={`lesson-${index}`}
+                        className="border rounded-lg px-4"
+                      >
+                        <AccordionTrigger className="hover:no-underline">
+                          <div className="flex items-start gap-4 flex-1 text-left">
+                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary text-sm">
+                              {lesson.order}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-semibold text-base">{lesson.title}</h4>
+                              {lesson.description && (
+                                <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                                  {lesson.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-3 mt-2">
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Clock className="h-3 w-3" />
+                                  {lesson.duration} min
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium">{lesson.title}</p>
+                        </AccordionTrigger>
+                        <AccordionContent>
+                          <div className="pl-12 pt-2 pb-4 space-y-4">
                             {lesson.description && (
-                              <p className="text-sm text-muted-foreground">{lesson.description}</p>
+                              <div>
+                                <h5 className="text-sm font-medium mb-1">Description</h5>
+                                <p className="text-sm text-muted-foreground">
+                                  {lesson.description}
+                                </p>
+                              </div>
                             )}
+                            <LessonMaterials courseId={id!} lessonTitle={lesson.title} />
                           </div>
-                        </div>
-                        <span className="text-sm text-muted-foreground">{lesson.duration} min</span>
-                      </div>
+                        </AccordionContent>
+                      </AccordionItem>
                     ))}
-                  </div>
+                  </Accordion>
                 </CardContent>
               </Card>
             ) : (
@@ -408,7 +546,7 @@ const CourseDetails = () => {
               </Card>
             )}
 
-            {/* Requirements - REAL DATA */}
+            {/* Requirements */}
             {course.requirements && course.requirements.length > 0 ? (
               <Card>
                 <CardHeader>
@@ -441,19 +579,16 @@ const CourseDetails = () => {
           {/* Sidebar */}
           <div className="space-y-6">
             {/* Enrollment Card */}
-            <Card className="sticky top-20">
+            <Card>
               <CardContent className="pt-6 space-y-6">
-                {/* Course Image Placeholder */}
                 <div className="aspect-video bg-gradient-card rounded-lg flex items-center justify-center">
                   <BookOpen className="h-16 w-16 text-primary/20" />
                 </div>
 
-                {/* Enrollment Button */}
                 {getEnrollmentButton()}
 
                 <Separator />
 
-                {/* Course Info */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Level</span>
@@ -507,17 +642,17 @@ const CourseDetails = () => {
                     <span>{course.teacherId.address}</span>
                   </div>
                 </div>
-               {isAuthenticated && user?.role === "student" && enrollment?.status === "approved" && (
-      <Button 
-        className="w-full gap-2" 
-        onClick={() => navigate(`/messages/${course.teacherId._id}/${course._id}`)}
-      >
-        <MessageSquare className="h-4 w-4" />
-        Message Teacher
-      </Button>
-    )}
-  </CardContent>
-</Card>
+                {isAuthenticated && user?.role === "student" && enrollment?.status === "approved" && (
+                  <Button 
+                    className="w-full gap-2" 
+                    onClick={() => navigate(`/messages/${course.teacherId._id}/${course._id}`)}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Message Teacher
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </div>
 
@@ -552,6 +687,14 @@ const CourseDetails = () => {
             </div>
           </div>
         )}
+
+        {/* Reviews Section */}
+        <div className="mt-12">
+          <ReviewSection 
+            courseId={id!} 
+            canReview={enrollment?.status === "approved"} 
+          />
+        </div>
       </div>
     </div>
   );

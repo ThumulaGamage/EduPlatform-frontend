@@ -1,9 +1,9 @@
-// src/components/Navigation.tsx - UPDATED with Messages
+// src/components/Navigation.tsx - UPDATED with Materials link for teachers
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, BookOpen, Users, LayoutDashboard, Menu, X, LogOut, UserCircle, MessageSquare } from "lucide-react";
+import { GraduationCap, BookOpen, Users, LayoutDashboard, Menu, X, LogOut, UserCircle, MessageSquare, Upload } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
@@ -60,9 +60,10 @@ const Navigation = () => {
     }
     
     if (user?.role === "teacher") {
-      // Teacher - show Dashboard, My Students, Courses, Messages
+      // Teacher - show Dashboard, Materials, My Students, Courses, Messages
       return [
         { path: "/teacher-dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { path: "/teacher-materials", label: "Materials", icon: Upload },
         { path: "/teacher-dashboard/students", label: "My Students", icon: Users },
         { path: "/teacher-dashboard/courses", label: "Courses", icon: BookOpen },
         { path: "/messages", label: "Messages", icon: MessageSquare, badge: unreadCount },

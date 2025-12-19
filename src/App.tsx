@@ -1,4 +1,4 @@
-// src/App.tsx - UPDATED with Message routes
+// src/App.tsx - UPDATED with TeacherMaterials route
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +20,7 @@ import TeacherProfile from "./pages/TeacherProfile";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
+import TeacherMaterials from "@/pages/TeacherMaterials";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,17 @@ const App = () => (
                 </ProtectedRoute>
               } 
             />
+            
+            {/* NEW: Teacher Materials Route */}
+            <Route 
+              path="/teacher-materials" 
+              element={
+                <ProtectedRoute allowedRoles={["teacher"]}>
+                  <TeacherMaterials />
+                </ProtectedRoute>
+              } 
+            />
+            
             <Route 
               path="/teacher-dashboard/students" 
               element={
