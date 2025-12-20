@@ -1,4 +1,4 @@
-// src/pages/StudentDashboard.tsx - UPDATED with real data
+// src/pages/StudentDashboard.tsx - UPDATED with lesson navigation
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Clock, Trophy, TrendingUp, LogOut } from "lucide-react";
+import { BookOpen, Clock, Trophy, TrendingUp, LogOut, PlayCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import API from "@/api/axios";
@@ -111,15 +111,7 @@ const StudentDashboard = () => {
                 </p>
               )}
             </div>
-            <Button 
-              variant="outline" 
-              onClick={handleLogout}
-              className="gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
-          </div>
+            </div>
         </div>
 
         {/* Stats Overview */}
@@ -237,7 +229,14 @@ const StudentDashboard = () => {
                       </div>
                       <div className="flex items-center justify-between">
                         <Badge variant="outline">{enrollment.courseId.level}</Badge>
-                        <Button size="sm">Continue</Button>
+                        <Button 
+                          size="sm"
+                          onClick={() => navigate(`/course/${enrollment.courseId._id}`)}
+                          className="gap-2"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                          {enrollment.progress === 0 ? "Start Learning" : "Continue"}
+                        </Button>
                       </div>
                     </div>
                   </CardContent>

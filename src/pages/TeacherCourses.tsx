@@ -70,7 +70,7 @@ interface Review {
     name: string;
   };
   rating: number;
-  comment: string;
+  review: string;  // ← Changed from 'comment' to 'review'
   createdAt: string;
 }
 
@@ -177,7 +177,6 @@ const TeacherCourses = () => {
 
       // Fetch reviews
       const reviewsRes = await API.get(`/reviews/course/${courseId}`);
-      console.log('Fetched reviews:', reviewsRes.data.reviews); // Debug
       setReviews(reviewsRes.data.reviews || []);
       
       // Calculate average rating
@@ -449,11 +448,10 @@ const TeacherCourses = () => {
 
     setSending(true);
     try {
-      // Note: You'll need to create this endpoint in your backend
       await API.post("/messages/send", {
-        recipientId: selectedStudent.studentId._id,
+        receiverId: selectedStudent.studentId._id,
         courseId: selectedCourse?._id,
-        content: messageContent
+        message: messageContent
       });
 
       toast({
@@ -476,7 +474,7 @@ const TeacherCourses = () => {
   };
 
   const handleBroadcast = async () => {
-    if (!broadcastMessage.trim()) {
+    if (!broadcastMessage.trim() || !selectedCourse) {
       toast({
         variant: "destructive",
         title: "Missing Information",
@@ -487,11 +485,16 @@ const TeacherCourses = () => {
 
     setSending(true);
     try {
-      // Send message to all enrolled students
-      await API.post("/messages/broadcast", {
-        courseId: selectedCourse?._id,
-        content: broadcastMessage
-      });
+      // Send individual message to each student
+      const sendPromises = students.map(student =>
+        API.post("/messages/send", {
+          receiverId: student.studentId._id,
+          courseId: selectedCourse._id,
+          message: broadcastMessage
+        })
+      );
+
+      await Promise.all(sendPromises);
 
       toast({
         title: "Broadcast Sent!",
@@ -1051,48 +1054,43 @@ const TeacherCourses = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {reviews.map((review) => {
-                          console.log('Rendering review:', review); // Debug
-                          console.log('Comment value:', review.comment); // Debug
-                          
-                          return (
-                            <div key={review._id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                              <div className="flex gap-4">
-                                {/* Student Avatar */}
-                                <div className="flex-shrink-0">
-                                  <div className="w-12 h-12 rounded-full bg-gradient-hero flex items-center justify-center text-primary-foreground text-xl font-bold">
-                                    {review.studentId.name.charAt(0).toUpperCase()}
-                                  </div>
-                                </div>
-                                
-                                {/* Review Content */}
-                                <div className="flex-1">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <div>
-                                      <h4 className="font-semibold text-base">{review.studentId.name}</h4>
-                                      <div className="flex items-center gap-2 mt-1">
-                                        {renderStars(review.rating)}
-                                        <span className="text-xs text-muted-foreground">
-                                          {formatDistanceToNow(new Date(review.createdAt), { addSuffix: true })}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  {/* Student Comment */}
-                                  {review.comment ? (
-                                    <p className="text-sm leading-relaxed mt-3 bg-muted/30 p-3 rounded">
-                                      {review.comment}
-                                    </p>
-                                  ) : (
-                                    <p className="text-sm text-muted-foreground italic mt-3">
-                                      No comment provided
-                                    </p>
-                                  )}
+                        {reviews.map((review) => (
+                          <div key={review._id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                            <div className="flex gap-4">
+                              {/* Student Avatar */}
+                              <div className="flex-shrink-0">
+                                <div className="w-12 h-12 rounded-full bg-gradient-hero flex items-center justify-center text-primary-foreground text-xl font-bold">
+                                  {review.studentId.name.charAt(0).toUpperCase()}
                                 </div>
                               </div>
+                              
+                              {/* Review Content */}
+                              <div className="flex-1">
+                                <div className="flex items-start justify-between mb-2">
+                                  <div>
+                                    <h4 className="font-semibold text-base">{review.studentId.name}</h4>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      {renderStars(review.rating)}
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatDistanceToNow(new Date(review.createdAt), { addSuffix: true })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Student Comment */}
+                                {review.review ? (
+                                  <p className="text-sm leading-relaxed mt-3 bg-muted/30 p-3 rounded">
+                                    {review.review}
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground italic mt-3">
+                                    No review provided
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          );
-                        })}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </CardContent>

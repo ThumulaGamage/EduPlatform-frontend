@@ -1,4 +1,4 @@
-// src/pages/CourseDetails.tsx - UPDATED with accordion course content
+// src/pages/CourseDetails.tsx - WITH LESSON COMPLETION INTEGRATED
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
@@ -13,7 +13,8 @@ import {
   Clock, 
   BarChart, 
   Users, 
-  CheckCircle, 
+  CheckCircle,
+  Circle, 
   ArrowLeft,
   Award,
   Target,
@@ -31,6 +32,7 @@ import ReviewSection from "@/components/ReviewSection";
 import { formatDistanceToNow } from "date-fns";
 
 interface Lesson {
+  _id: string;
   title: string;
   description: string;
   duration: number;
@@ -73,6 +75,7 @@ interface Enrollment {
   _id: string;
   status: "pending" | "approved" | "rejected";
   progress: number;
+  completedLessons?: string[];
   enrollmentDate: string;
 }
 
@@ -192,6 +195,7 @@ const CourseDetails = () => {
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchCourseDetails();
@@ -226,7 +230,6 @@ const CourseDetails = () => {
       // Get real student count for this course
       try {
         const enrollmentsRes = await API.get(`/enrollments/course/${id}`);
-        // Count only approved enrollments
         const approvedCount = enrollmentsRes.data.enrollments?.filter(
           (e: any) => e.status === "approved"
         ).length || 0;
@@ -283,6 +286,63 @@ const CourseDetails = () => {
       });
     } finally {
       setEnrolling(false);
+    }
+  };
+
+  // NEW: Lesson completion functions
+  const isLessonCompleted = (lessonId: string) => {
+    return enrollment?.completedLessons?.includes(lessonId) || false;
+  };
+
+  const handleCompleteLesson = async (lessonId: string) => {
+    if (!enrollment) return;
+
+    setUpdating(true);
+    try {
+      await API.put(`/enrollments/${enrollment._id}/complete-lesson`, {
+        lessonId
+      });
+
+      toast({
+        title: "Lesson Completed! 🎉",
+        description: "Great job! Keep going!"
+      });
+
+      await fetchCourseDetails();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || "Could not update progress"
+      });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleUncompleteLesson = async (lessonId: string) => {
+    if (!enrollment) return;
+
+    setUpdating(true);
+    try {
+      await API.put(`/enrollments/${enrollment._id}/uncomplete-lesson`, {
+        lessonId
+      });
+
+      toast({
+        title: "Lesson Unmarked",
+        description: "Lesson marked as incomplete"
+      });
+
+      await fetchCourseDetails();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || "Could not update progress"
+      });
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -396,6 +456,8 @@ const CourseDetails = () => {
   }
 
   const totalDuration = course.lessons?.reduce((sum, lesson) => sum + lesson.duration, 0) || 0;
+  const isEnrolledAndApproved = enrollment?.status === "approved";
+  const completedCount = enrollment?.completedLessons?.length || 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -421,6 +483,11 @@ const CourseDetails = () => {
                   {course.level}
                 </Badge>
                 <Badge variant="outline">{course.category}</Badge>
+                {isEnrolledAndApproved && (
+                  <Badge variant="secondary" className="bg-green-500 text-white">
+                    {completedCount} / {course.lessons?.length || 0} Lessons Completed
+                  </Badge>
+                )}
               </div>
               <h1 className="text-4xl font-bold mb-4">{course.title}</h1>
               <p className="text-lg text-muted-foreground mb-6">{course.description}</p>
@@ -478,7 +545,7 @@ const CourseDetails = () => {
               </Card>
             )}
 
-            {/* Course Content with Accordion and Materials */}
+            {/* Course Content with Accordion, Materials, AND LESSON COMPLETION */}
             {course.lessons && course.lessons.length > 0 ? (
               <Card>
                 <CardHeader>
@@ -488,52 +555,110 @@ const CourseDetails = () => {
                   </CardTitle>
                   <CardDescription>
                     {course.lessons.length} lessons • {Math.floor(totalDuration / 60)}h {totalDuration % 60}m
+                    {isEnrolledAndApproved && ` • ${completedCount} completed`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Accordion type="single" collapsible className="space-y-2">
-                    {course.lessons.map((lesson, index) => (
-                      <AccordionItem 
-                        key={index} 
-                        value={`lesson-${index}`}
-                        className="border rounded-lg px-4"
-                      >
-                        <AccordionTrigger className="hover:no-underline">
-                          <div className="flex items-start gap-4 flex-1 text-left">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-semibold text-primary text-sm">
-                              {lesson.order}
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-base">{lesson.title}</h4>
-                              {lesson.description && (
-                                <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
-                                  {lesson.description}
-                                </p>
-                              )}
-                              <div className="flex items-center gap-3 mt-2">
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <Clock className="h-3 w-3" />
-                                  {lesson.duration} min
+                    {course.lessons.map((lesson, index) => {
+                      const isCompleted = isLessonCompleted(lesson._id);
+                      
+                      return (
+                        <AccordionItem 
+                          key={index} 
+                          value={`lesson-${index}`}
+                          className={`border rounded-lg px-4 transition-all ${
+                            isCompleted 
+                              ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-900" 
+                              : ""
+                          }`}
+                        >
+                          <AccordionTrigger className="hover:no-underline">
+                            <div className="flex items-start gap-4 flex-1 text-left">
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm ${
+                                isCompleted
+                                  ? "bg-green-500 text-white"
+                                  : "bg-primary/10 text-primary"
+                              }`}>
+                                {isCompleted ? (
+                                  <CheckCircle className="h-5 w-5" />
+                                ) : (
+                                  lesson.order
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className={`font-semibold text-base ${
+                                    isCompleted ? "line-through text-muted-foreground" : ""
+                                  }`}>
+                                    {lesson.title}
+                                  </h4>
+                                  {isCompleted && (
+                                    <Badge variant="secondary" className="bg-green-500 text-white text-xs">
+                                      Completed
+                                    </Badge>
+                                  )}
+                                </div>
+                                {lesson.description && (
+                                  <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                                    {lesson.description}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-3 mt-2">
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Clock className="h-3 w-3" />
+                                    {lesson.duration} min
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent>
-                          <div className="pl-12 pt-2 pb-4 space-y-4">
-                            {lesson.description && (
-                              <div>
-                                <h5 className="text-sm font-medium mb-1">Description</h5>
-                                <p className="text-sm text-muted-foreground">
-                                  {lesson.description}
-                                </p>
-                              </div>
-                            )}
-                            <LessonMaterials courseId={id!} lessonTitle={lesson.title} />
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    ))}
+                          </AccordionTrigger>
+                          <AccordionContent>
+                            <div className="pl-12 pt-2 pb-4 space-y-4">
+                              {lesson.description && (
+                                <div>
+                                  <h5 className="text-sm font-medium mb-1">Description</h5>
+                                  <p className="text-sm text-muted-foreground">
+                                    {lesson.description}
+                                  </p>
+                                </div>
+                              )}
+                              
+                              <LessonMaterials courseId={id!} lessonTitle={lesson.title} />
+
+                              {/* LESSON COMPLETION BUTTONS - Only for enrolled students */}
+                              {isEnrolledAndApproved && (
+                                <div className="pt-2">
+                                  {isCompleted ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => handleUncompleteLesson(lesson._id)}
+                                      disabled={updating}
+                                      className="w-full sm:w-auto"
+                                    >
+                                      <Circle className="h-4 w-4 mr-2" />
+                                      Mark as Incomplete
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      onClick={() => handleCompleteLesson(lesson._id)}
+                                      disabled={updating}
+                                      className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+                                    >
+                                      <CheckCircle className="h-4 w-4 mr-2" />
+                                      Mark as Complete
+                                    </Button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      );
+                    })}
                   </Accordion>
                 </CardContent>
               </Card>
