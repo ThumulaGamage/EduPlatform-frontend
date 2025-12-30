@@ -1,4 +1,4 @@
-// src/pages/TeacherCourses.tsx - COMPLETE with students, messaging, reviews
+// src/pages/TeacherCourses.tsx - COMPLETE with CREATE COURSE BUTTON + students, messaging, reviews
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,8 +15,32 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BookOpen, Plus, Trash2, FileText, Video, ArrowLeft, Edit, Save, Upload, Clock, Eye, CheckCircle, Users, Star, BarChart, MessageSquare, Send, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import API from "@/api/axios";
 import { formatDistanceToNow } from "date-fns";
+
+const CATEGORIES = [
+  "Programming",
+  "Web Development",
+  "Mobile Development",
+  "Data Science",
+  "Machine Learning",
+  "Artificial Intelligence",
+  "Cloud Computing",
+  "DevOps",
+  "Cybersecurity",
+  "Database",
+  "UI/UX Design",
+  "Graphic Design",
+  "Game Development",
+  "Business",
+  "Marketing",
+  "Project Management",
+  "Language Learning",
+  "Music",
+  "Photography",
+  "Other"
+];
 
 interface Course {
   _id: string;
@@ -70,13 +95,23 @@ interface Review {
     name: string;
   };
   rating: number;
-  review: string;  // ← Changed from 'comment' to 'review'
+  review: string;
   createdAt: string;
+}
+
+interface CourseFormData {
+  title: string;
+  description: string;
+  duration: string;
+  level: string;
+  category: string;
+  totalLessons: number;
 }
 
 const TeacherCourses = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -88,6 +123,17 @@ const TeacherCourses = () => {
   const [totalDuration, setTotalDuration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+
+  // Create Course Dialog - NEW
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [createFormData, setCreateFormData] = useState<CourseFormData>({
+    title: "",
+    description: "",
+    duration: "",
+    level: "beginner",
+    category: "",
+    totalLessons: 0
+  });
 
   // Edit Course Dialog
   const [isEditCourseOpen, setIsEditCourseOpen] = useState(false);
@@ -203,6 +249,47 @@ const TeacherCourses = () => {
     setLessonsWithMaterials([]);
     setStudents([]);
     setReviews([]);
+  };
+
+  // CREATE COURSE HANDLER - NEW
+  const resetCreateForm = () => {
+    setCreateFormData({
+      title: "",
+      description: "",
+      duration: "",
+      level: "beginner",
+      category: "",
+      totalLessons: 0
+    });
+  };
+
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUploading(true);
+
+    try {
+      await API.post("/courses", {
+        ...createFormData,
+        teacherId: user?.id
+      });
+
+      toast({
+        title: "Success!",
+        description: "Course created successfully"
+      });
+
+      setIsCreateDialogOpen(false);
+      resetCreateForm();
+      fetchCourses();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.response?.data?.message || "Failed to create course"
+      });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const openEditCourseDialog = () => {
@@ -569,11 +656,23 @@ const TeacherCourses = () => {
         {/* Course List View */}
         {!selectedCourse ? (
           <>
-            <div className="mb-8">
-              <h1 className="text-4xl font-bold mb-2">My Courses</h1>
-              <p className="text-muted-foreground">
-                Click on a course to view and manage content
-              </p>
+            {/* HEADER WITH CREATE BUTTON - MODIFIED */}
+            <div className="mb-8 flex items-center justify-between">
+              <div>
+                <h1 className="text-4xl font-bold mb-2">My Courses</h1>
+                <p className="text-muted-foreground">
+                  Click on a course to view and manage content
+                </p>
+              </div>
+
+              {/* CREATE COURSE BUTTON - NEW */}
+              <Button onClick={() => {
+                resetCreateForm();
+                setIsCreateDialogOpen(true);
+              }} className="gap-2" size="lg">
+                <Plus className="h-5 w-5" />
+                Create Course
+              </Button>
             </div>
 
             {courses.length === 0 ? (
@@ -584,7 +683,8 @@ const TeacherCourses = () => {
                   <p className="text-muted-foreground mb-4">
                     Create your first course to get started
                   </p>
-                  <Button onClick={() => navigate("/teacher-dashboard")}>
+                  <Button onClick={() => setIsCreateDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
                     Create Course
                   </Button>
                 </CardContent>
@@ -619,7 +719,7 @@ const TeacherCourses = () => {
             )}
           </>
         ) : (
-          /* Course Detail View with Tabs */
+          /* Course Detail View with Tabs - UNCHANGED */
           <>
             {/* Back Button */}
             <Button 
@@ -1100,7 +1200,116 @@ const TeacherCourses = () => {
           </>
         )}
 
-        {/* Edit Course Dialog - Same as before */}
+        {/* CREATE COURSE DIALOG - NEW */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create New Course</DialogTitle>
+              <DialogDescription>
+                Fill in the details to create a new course
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateCourse} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="create-title">Course Title *</Label>
+                <Input
+                  id="create-title"
+                  placeholder="e.g., Introduction to Web Development"
+                  value={createFormData.title}
+                  onChange={(e) => setCreateFormData({ ...createFormData, title: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="create-description">Description *</Label>
+                <Textarea
+                  id="create-description"
+                  placeholder="Describe what students will learn in this course..."
+                  value={createFormData.description}
+                  onChange={(e) => setCreateFormData({ ...createFormData, description: e.target.value })}
+                  rows={4}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="create-category">Category *</Label>
+                  <Select 
+                    value={createFormData.category} 
+                    onValueChange={(value) => setCreateFormData({ ...createFormData, category: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="create-level">Level *</Label>
+                  <Select 
+                    value={createFormData.level} 
+                    onValueChange={(value) => setCreateFormData({ ...createFormData, level: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="beginner">Beginner</SelectItem>
+                      <SelectItem value="intermediate">Intermediate</SelectItem>
+                      <SelectItem value="advanced">Advanced</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="create-duration">Duration *</Label>
+                  <Input
+                    id="create-duration"
+                    placeholder="e.g., 8 weeks, 3 months"
+                    value={createFormData.duration}
+                    onChange={(e) => setCreateFormData({ ...createFormData, duration: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="create-totalLessons">Total Lessons *</Label>
+                  <Input
+                    id="create-totalLessons"
+                    type="number"
+                    min="1"
+                    placeholder="e.g., 24"
+                    value={createFormData.totalLessons || ""}
+                    onChange={(e) => setCreateFormData({ ...createFormData, totalLessons: parseInt(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={uploading}>
+                  {uploading ? "Creating..." : "Create Course"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Course Dialog - UNCHANGED */}
         <Dialog open={isEditCourseOpen} onOpenChange={setIsEditCourseOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
@@ -1253,7 +1462,7 @@ const TeacherCourses = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Add Lesson Dialog - Same as before */}
+        {/* Add Lesson Dialog - UNCHANGED */}
         <Dialog open={isAddLessonOpen} onOpenChange={setIsAddLessonOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>

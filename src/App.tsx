@@ -22,6 +22,7 @@ import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import TeacherMaterials from "@/pages/TeacherMaterials";
 import StudentCourseLessons from "@/pages/StudentCourseLessons";
+import TeacherProfilePage from "@/pages/Teacherprofilepage";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,8 @@ const App = () => (
             <Route path="/teachers" element={<Teachers />} />
             <Route path="/course/:id" element={<CourseDetails />} />
             <Route path="/student/course/:id/lessons" element={<StudentCourseLessons />} />
+            <Route path="/teacher/:id" element={<TeacherProfilePage />} />
+
             {/* Message Routes - Both Students and Teachers */}
             <Route 
               path="/messages" 

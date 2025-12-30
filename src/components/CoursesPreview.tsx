@@ -1,10 +1,10 @@
-// src/components/CoursesPreview.tsx - UPDATED with course details links
+// src/components/CoursesPreview.tsx - WITH DEBUG LOGGING
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Clock, BarChart, CheckCircle, Eye } from "lucide-react";
+import { BookOpen, Clock, BarChart, CheckCircle, Eye, X } from "lucide-react";
 import API from "@/api/axios";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,7 +32,12 @@ interface Enrollment {
 }
 
 const CoursesPreview = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const teacherIdFilter = searchParams.get("teacher");
+  const teacherNameFilter = searchParams.get("teacherName");
+
   const [courses, setCourses] = useState<Course[]>([]);
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [requestingEnrollment, setRequestingEnrollment] = useState<string | null>(null);
@@ -43,12 +48,39 @@ const CoursesPreview = () => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    // DEBUG: Log what we're filtering
+    console.log("=== FILTER DEBUG ===");
+    console.log("Teacher ID Filter:", teacherIdFilter);
+    console.log("Teacher Name Filter:", teacherNameFilter);
+    console.log("Total Courses:", courses.length);
+    
+    if (teacherIdFilter) {
+      console.log("Filtering courses for teacher:", teacherIdFilter);
+      
+      const filtered = courses.filter(course => {
+        const matches = course.teacherId._id === teacherIdFilter;
+        console.log(`Course: ${course.title}, Teacher: ${course.teacherId._id}, Match: ${matches}`);
+        return matches;
+      });
+      
+      console.log("Filtered Courses Count:", filtered.length);
+      setFilteredCourses(filtered);
+    } else {
+      console.log("No filter - showing all courses");
+      setFilteredCourses(courses);
+    }
+    console.log("===================");
+  }, [teacherIdFilter, courses]);
+
   const fetchData = async () => {
     try {
       const [coursesRes, enrollmentsRes] = await Promise.all([
         API.get("/courses"),
         API.get("/enrollments/my-enrollments")
       ]);
+      
+      console.log("Fetched courses:", coursesRes.data.courses);
       setCourses(coursesRes.data.courses);
       setEnrollments(enrollmentsRes.data.enrollments);
     } catch (err) {
@@ -58,13 +90,17 @@ const CoursesPreview = () => {
     }
   };
 
+  const clearTeacherFilter = () => {
+    setSearchParams({});
+  };
+
   const getEnrollmentStatus = (courseId: string) => {
     const enrollment = enrollments.find(e => e.courseId._id === courseId);
     return enrollment?.status;
   };
 
   const handleEnrollRequest = async (courseId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
+    e.stopPropagation();
     setRequestingEnrollment(courseId);
     try {
       await API.post("/enrollments/request", { courseId });
@@ -105,18 +141,45 @@ const CoursesPreview = () => {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold">Browse All Courses</h2>
-        <p className="text-muted-foreground">Explore and enroll in courses that interest you</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">
+              {teacherNameFilter ? `Courses by ${teacherNameFilter}` : "Browse All Courses"}
+            </h2>
+            <p className="text-muted-foreground">
+              {teacherNameFilter 
+                ? `Showing ${filteredCourses.length} courses by this instructor`
+                : "Explore and enroll in courses that interest you"
+              }
+            </p>
+          </div>
+          {teacherIdFilter && (
+            <Button variant="outline" onClick={clearTeacherFilter}>
+              <X className="h-4 w-4 mr-2" />
+              Clear Filter
+            </Button>
+          )}
+        </div>
       </div>
 
-      {courses.length === 0 ? (
+      {filteredCourses.length === 0 ? (
         <div className="text-center py-12">
           <BookOpen className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">No courses available yet</p>
+          <p className="text-muted-foreground">
+            {teacherNameFilter 
+              ? `${teacherNameFilter} hasn't created any courses yet`
+              : "No courses available yet"
+            }
+          </p>
+          {teacherIdFilter && (
+            <Button className="mt-4" onClick={clearTeacherFilter}>
+              View All Courses
+            </Button>
+          )}
         </div>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {courses.map((course) => {
+          {filteredCourses.map((course) => {
             const enrollmentStatus = getEnrollmentStatus(course._id);
             const isRequesting = requestingEnrollment === course._id;
 
