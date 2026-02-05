@@ -1,4 +1,4 @@
-// src/pages/CourseDetails.tsx - UPDATED: Hide content for unenrolled students
+// src/pages/CourseDetails.tsx - COMPLETE WITH ASSIGNMENTS
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import Navigation from "@/components/Navigation";
@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import AssignmentList from "@/components/AssignmentList";
+import CreateAssignment from "@/components/CreateAssignment";
 import { 
   BookOpen, 
   Clock, 
@@ -17,7 +20,8 @@ import {
   Target,
   Mail,
   MapPin,
-  Lock
+  Lock,
+  FileText
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +86,7 @@ const CourseDetails = () => {
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [studentCount, setStudentCount] = useState(0);
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false);
 
   // Check if student is enrolled and approved
   const isEnrolledAndApproved = enrollment?.status === "approved";
@@ -385,84 +390,165 @@ const CourseDetails = () => {
               </Card>
             )}
 
-            {/* Course Content - RESTRICTED FOR UNENROLLED STUDENTS */}
+            {/* Course Content & Assignments - TABBED INTERFACE */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <BookOpen className="h-5 w-5" />
-                  Course Content
+                  Course Content & Assignments
                 </CardTitle>
                 <CardDescription>
                   {course.totalLessons} lessons • {course.duration}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {!isEnrolledAndApproved ? (
-                  /* LOCKED CONTENT FOR UNENROLLED STUDENTS */
-                  <div className="text-center py-12">
-                    <Lock className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
-                    <h3 className="text-lg font-semibold mb-2">Course Content Locked</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Enroll in this course to access {course.totalLessons} lessons and all course materials
-                    </p>
-                    {!isAuthenticated ? (
-                      <Button onClick={handleEnrollRequest}>
-                        Sign In to Enroll
-                      </Button>
-                    ) : enrollment?.status === "pending" ? (
-                      <p className="text-sm text-muted-foreground">
-                        Your enrollment is pending approval
-                      </p>
+                <Tabs defaultValue="lessons" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="lessons">
+                      <BookOpen className="h-4 w-4 mr-2" />
+                      Lessons
+                    </TabsTrigger>
+                    <TabsTrigger value="assignments">
+                      <FileText className="h-4 w-4 mr-2" />
+                      Assignments
+                    </TabsTrigger>
+                  </TabsList>
+{/* LESSONS TAB */}
+                  <TabsContent value="lessons" className="mt-6">
+                    {user?.role === 'student' && !isEnrolledAndApproved ? (
+                      /* LOCKED CONTENT FOR UNENROLLED STUDENTS */
+                      <div className="text-center py-12">
+                        <Lock className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+                        <h3 className="text-lg font-semibold mb-2">Course Content Locked</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Enroll in this course to access {course.totalLessons} lessons and all course materials
+                        </p>
+                        {!isAuthenticated ? (
+                          <Button onClick={handleEnrollRequest}>
+                            Sign In to Enroll
+                          </Button>
+                        ) : enrollment?.status === "pending" ? (
+                          <p className="text-sm text-muted-foreground">
+                            Your enrollment is pending approval
+                          </p>
+                        ) : (
+                          <Button onClick={handleEnrollRequest} disabled={enrolling}>
+                            {enrolling ? "Requesting..." : "Request Enrollment"}
+                          </Button>
+                        )}
+                      </div>
                     ) : (
-                      <Button onClick={handleEnrollRequest} disabled={enrolling}>
-                        {enrolling ? "Requesting..." : "Request Enrollment"}
-                      </Button>
+                      /* SHOW CONTENT FOR ENROLLED STUDENTS AND TEACHERS */
+                      /* SHOW CONTENT FOR ENROLLED STUDENTS */
+                      <div className="space-y-4">
+                        {course.lessons && course.lessons.length > 0 ? (
+                          course.lessons.map((lesson) => (
+                            <div 
+
+  key={lesson._id} 
+  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted cursor-pointer transition"
+  onClick={() => navigate(`/student/course/${id}/lessons`)}
+>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                                  {lesson.order}
+                                </div>
+                                <div>
+                                  <p className="font-medium">{lesson.title}</p>
+                                  {lesson.description && (
+                                    <p className="text-sm text-muted-foreground">{lesson.description}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <span className="text-sm text-muted-foreground">{lesson.duration} min</span>
+                            </div>
+                          ))
+                        ) : (
+                          /* Placeholder lessons if no real lessons exist */
+                          Array.from({ length: Math.min(course.totalLessons, 5) }).map((_, index) => (
+                            <div 
+  
+  key={index} 
+  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted cursor-pointer transition"
+  onClick={() => navigate(`/student/course/${id}/lessons`)}
+>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                                  {index + 1}
+                                </div>
+                                <div>
+                                  <p className="font-medium">Lesson {index + 1}</p>
+                                  <p className="text-sm text-muted-foreground">Introduction to key concepts</p>
+                                </div>
+                              </div>
+                              <span className="text-sm text-muted-foreground">15 min</span>
+                            </div>
+                          ))
+                        )}
+                        {course.totalLessons > 5 && !course.lessons && (
+                          <p className="text-center text-sm text-muted-foreground">
+                            + {course.totalLessons - 5} more lessons
+                          </p>
+                        )}
+                      </div>
                     )}
-                  </div>
-                ) : (
-                  /* SHOW CONTENT FOR ENROLLED STUDENTS */
-                  <div className="space-y-4">
-                    {course.lessons && course.lessons.length > 0 ? (
-                      course.lessons.map((lesson, index) => (
-                        <div key={lesson._id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                              {lesson.order}
-                            </div>
-                            <div>
-                              <p className="font-medium">{lesson.title}</p>
-                              {lesson.description && (
-                                <p className="text-sm text-muted-foreground">{lesson.description}</p>
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-sm text-muted-foreground">{lesson.duration} min</span>
-                        </div>
-                      ))
+                  </TabsContent>
+
+                  {/* ASSIGNMENTS TAB */}
+                  <TabsContent value="assignments" className="mt-6">
+                    {!isEnrolledAndApproved && user?.role === 'student' ? (
+                      /* LOCKED FOR UNENROLLED STUDENTS */
+                      <div className="text-center py-12">
+                        <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4 opacity-50" />
+                        <h3 className="text-lg font-semibold mb-2">Assignments Locked</h3>
+                        <p className="text-muted-foreground mb-4">
+                          Enroll in this course to access assignments
+                        </p>
+                        {!isAuthenticated ? (
+                          <Button onClick={handleEnrollRequest}>
+                            Sign In to Enroll
+                          </Button>
+                        ) : enrollment?.status === "pending" ? (
+                          <p className="text-sm text-muted-foreground">
+                            Your enrollment is pending approval
+                          </p>
+                        ) : (
+                          <Button onClick={handleEnrollRequest} disabled={enrolling}>
+                            {enrolling ? "Requesting..." : "Request Enrollment"}
+                          </Button>
+                        )}
+                      </div>
                     ) : (
-                      /* Placeholder lessons if no real lessons exist */
-                      Array.from({ length: Math.min(course.totalLessons, 5) }).map((_, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                              {index + 1}
-                            </div>
-                            <div>
-                              <p className="font-medium">Lesson {index + 1}</p>
-                              <p className="text-sm text-muted-foreground">Introduction to key concepts</p>
-                            </div>
+                      /* SHOW ASSIGNMENTS */
+                      <div className="space-y-6">
+                        {/* Teacher: Create Assignment Button */}
+                        {user?.role === 'teacher' && course.teacherId._id === user.id && (
+                          <div>
+                            <Button 
+                              onClick={() => setShowCreateAssignment(!showCreateAssignment)}
+                              className="mb-4"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              {showCreateAssignment ? "Hide Form" : "Create New Assignment"}
+                            </Button>
+                            
+                            {showCreateAssignment && (
+                              <div className="mb-6">
+                                <CreateAssignment 
+                                  courseId={id!} 
+                                  onSuccess={() => setShowCreateAssignment(false)}
+                                />
+                              </div>
+                            )}
                           </div>
-                          <span className="text-sm text-muted-foreground">15 min</span>
-                        </div>
-                      ))
+                        )}
+
+                        {/* Assignment List - Shows for teachers and enrolled students */}
+                        <AssignmentList courseId={id!} />
+                      </div>
                     )}
-                    {course.totalLessons > 5 && !course.lessons && (
-                      <p className="text-center text-sm text-muted-foreground">
-                        + {course.totalLessons - 5} more lessons
-                      </p>
-                    )}
-                  </div>
-                )}
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
 
